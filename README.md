@@ -9,11 +9,11 @@ reddit.com saved posts.
 
 instructions
 -----------
-1. log into the desired website if required
-2. Enter the URL of the webpage you want to download from
-3. Enter the cookie header string (Press F12 --> F5 --> select request from reddit.com --> headers tab --> request headers --> copy full cookie string)
-   OR download a cookie extention for your browser
-5. Enter a folder to export downloaded files to
+1. log into the desired website if required.
+2. Enter the URL of the webpage you want to download from.
+3. Enter the cookie header string (Press F12 --> F5 --> select a request from the website --> headers tab --> request headers --> copy full cookie string
+   OR download a cookie extention for your browser and export)
+5. Enter a folder to export downloaded files to.
 
 DISCLAIMER
 ----------
