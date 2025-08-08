@@ -1,5 +1,5 @@
 # Bulk-Downloader
-Bulk Downloader for downloading images, videos, and other files from a url, including saved Reddit posts.
+Bulk Downloader for downloading images, videos, and other files from a web url, including saved Reddit posts.
 
 Instructions:
 1. log into the desired website if required
