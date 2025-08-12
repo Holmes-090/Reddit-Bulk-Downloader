@@ -1,4 +1,4 @@
-Bulk URL Media Downloader
+Bulk Reddit Media Downloader
 ==================================
 
 DESCRIPTION
