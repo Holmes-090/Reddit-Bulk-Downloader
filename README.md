@@ -9,11 +9,12 @@ reddit.com saved posts.
 
 instructions
 -----------
-1. log into the desired website if required.
-2. Enter the URL of the webpage you want to download from. (example: www.reddit.com/user/USERNAME/saved)
-3. Enter the cookie header string (Press F12 --> F5 --> select a request from the website --> headers tab --> request headers --> copy full cookie string
+1. Run the bulk_downloader python file or .exe file.
+2. log into the desired website if required.
+3. Enter the URL of the webpage you want to download from into the Reddit Saved URL field . (example: www.reddit.com/user/USERNAME/saved)
+4. Enter the cookie header string into the login cookie field (Press F12 --> F5 --> select a request from the website --> headers tab --> request headers --> copy full cookie string
    OR download a cookie extention for your browser and export the header string)
-5. Enter a folder to export downloaded files to.
+5. Enter a folder to export downloaded files to from the saved folder field.
 
 DISCLAIMER
 ----------
