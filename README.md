@@ -3,7 +3,7 @@ Bulk Reddit Media Downloader
 
 DESCRIPTION
 -----------
-This program downloads all media (images, videos, GIFs, etc.) from your a given url.
+This program downloads all media (images, videos, etc.) from your a given url.
 Each item is placed in its own folder named after the post title. Works for downloading
 reddit.com saved posts.
 
