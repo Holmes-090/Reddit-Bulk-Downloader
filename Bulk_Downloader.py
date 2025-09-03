@@ -13,16 +13,24 @@ from threading import Thread
 def clean_filename(name):
     # Sanitize filename for Windows
     sanitized = re.sub(r'[\\/*?:"<>|]', "", name).strip()
-    # Remove single quotes to avoid awkward paths like 'title'
-    sanitized = sanitized.replace("'", "")
+    # Remove single quotes and other problematic characters to avoid path issues
+    sanitized = sanitized.replace("'", "").replace("`", "").replace("\"", "")
     # Remove trailing dots/spaces (invalid on Windows)
     sanitized = re.sub(r'[\. ]+$', "", sanitized)
+    # Replace multiple spaces with single spaces
+    sanitized = re.sub(r'\s+', ' ', sanitized)
     if not sanitized:
         sanitized = "untitled"
     # Avoid Windows reserved device names
     reserved = {"CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"}
     if sanitized.upper() in reserved:
         sanitized = f"_{sanitized}_"
+    
+    # Limit filename length to avoid Windows path length issues
+    if len(sanitized) > 100:
+        sanitized = sanitized[:100].rstrip()
+    
+    print(f"DEBUG: Cleaned filename: '{name}' -> '{sanitized}'")
     return sanitized
 
 
@@ -45,22 +53,59 @@ def get_media_links_from_post_html(post_div):
     return list(set(media_links))
 
 
-def download_file(url, dest_folder):
+def download_file(url, dest_folder, filename_prefix=""):
     timeout = (15, 180)
     attempts = 2
     last_error = None
-    local_filename = url.split('/')[-1].split("?")[0]
-    filepath = os.path.join(dest_folder, local_filename)
+    
+    # Try multiple URLs for Reddit preview links
+    urls_to_try = _try_convert_reddit_preview_url(url)
+    
+    for attempt_url in urls_to_try:
+        print(f"DEBUG: Trying URL: {attempt_url}")
+        
+        local_filename = attempt_url.split('/')[-1].split("?")[0]
+        
+        # Add prefix if provided (useful for gallery ordering)
+        if filename_prefix:
+            name, ext = os.path.splitext(local_filename)
+            local_filename = f"{filename_prefix}_{local_filename}"
+        
+        filepath = os.path.join(dest_folder, local_filename)
+        
+        # Try downloading this URL variant
+        result = _download_single_url(attempt_url, filepath, dest_folder, timeout, attempts)
+        if result:
+            return result
+        
+        last_error = f"All URL variants failed for {url}"
+    
+    print(f"Error downloading {url}: {last_error}")
+    return None
 
-    headers = {'User-Agent': 'Mozilla/5.0'}
+
+def _download_single_url(url, filepath, dest_folder, timeout, attempts):
+    """Helper function to download a single URL"""
+    
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+    
+    # Set appropriate headers based on the URL
     if 'redgifs.com' in url:
         headers['Referer'] = 'https://www.redgifs.com/'
         headers['Origin'] = 'https://www.redgifs.com'
         headers['Accept'] = '*/*'
+    elif 'redd.it' in url or 'reddit.com' in url:
+        # Reddit preview URLs need proper referrer and headers
+        headers['Referer'] = 'https://www.reddit.com/'
+        headers['Accept'] = 'image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+        headers['Sec-Fetch-Dest'] = 'image'
+        headers['Sec-Fetch-Mode'] = 'no-cors'
+        headers['Sec-Fetch-Site'] = 'cross-site'
 
     for _ in range(attempts):
         try:
             os.makedirs(dest_folder, exist_ok=True)
+            print(f"DEBUG: Downloading {url} to {filepath}")
             with requests.get(url, stream=True, headers=headers, timeout=timeout) as r:
                 r.raise_for_status()
                 with open(filepath, 'wb') as f:
@@ -68,16 +113,25 @@ def download_file(url, dest_folder):
                         if not chunk:
                             continue
                         f.write(chunk)
-            return filepath
+            # Verify file was created and has content
+            if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+                print(f"DEBUG: Successfully created file {filepath} ({os.path.getsize(filepath)} bytes)")
+                return filepath
+            else:
+                print(f"DEBUG: File creation failed or file is empty: {filepath}")
+                return None
         except Exception as e:
-            last_error = e
+            print(f"DEBUG: Exception during download: {e}")
+            print(f"DEBUG: Request headers used: {headers}")
+            if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+                print(f"DEBUG: Response status code: {e.response.status_code}")
             try:
                 if os.path.exists(filepath):
                     os.remove(filepath)
             except Exception:
                 pass
-
-    print(f"Error downloading {url}: {last_error}")
+    
+    # Return None if all attempts failed
     return None
 
 def parse_cookie_string_to_dict(cookies_str: str) -> dict:
@@ -194,6 +248,38 @@ def _convert_imgur_gifv_to_mp4(url: str) -> str:
     return url
 
 
+def _try_convert_reddit_preview_url(url: str) -> list[str]:
+    """
+    Convert Reddit preview URLs to potential direct media URLs.
+    Reddit preview URLs often return 403, but direct media URLs work.
+    """
+    if not ('preview.redd.it' in url or 'external-preview.redd.it' in url):
+        return [url]
+    
+    urls_to_try = [url]  # Always try original first
+    
+    try:
+        # Try converting preview.redd.it to i.redd.it (direct media)
+        if 'preview.redd.it' in url:
+            direct_url = url.replace('preview.redd.it', 'i.redd.it')
+            urls_to_try.append(direct_url)
+        
+        # Try removing preview parameters
+        if '?' in url:
+            clean_url = url.split('?')[0]
+            if clean_url != url:
+                urls_to_try.append(clean_url)
+                # Also try the i.redd.it version of the clean URL
+                if 'preview.redd.it' in clean_url:
+                    direct_clean = clean_url.replace('preview.redd.it', 'i.redd.it')
+                    urls_to_try.append(direct_clean)
+    
+    except Exception:
+        pass
+    
+    return urls_to_try
+
+
 def extract_media_urls_from_post_data(post_data: dict, headers: dict, log_callback) -> list[str]:
     media_urls: list[str] = []
 
@@ -212,21 +298,62 @@ def extract_media_urls_from_post_data(post_data: dict, headers: dict, log_callba
 
     # Reddit-hosted gallery
     if post_data.get('is_gallery') and isinstance(post_data.get('media_metadata'), dict):
-        for item in post_data['media_metadata'].values():
-            if not isinstance(item, dict):
-                continue
-            # Prefer the highest resolution preview available
-            previews = item.get('p') or []
-            if previews:
-                best = previews[-1]
-                url = best.get('u') or best.get('url')
-                if url:
-                    media_urls.append(url.split('?')[0])
-            else:
-                # Fallback to source if no previews
+        media_metadata = post_data['media_metadata']
+        gallery_data = post_data.get('gallery_data', {})
+        gallery_items = gallery_data.get('items', []) if isinstance(gallery_data, dict) else []
+        
+        # Use gallery_data order if available, otherwise use media_metadata keys
+        if gallery_items:
+            # Process in the order specified by gallery_data
+            for gallery_item in gallery_items:
+                if not isinstance(gallery_item, dict):
+                    continue
+                media_id = gallery_item.get('media_id')
+                if not media_id or media_id not in media_metadata:
+                    continue
+                item = media_metadata[media_id]
+                if not isinstance(item, dict):
+                    continue
+                
+                # Extract URL and decode HTML entities
+                url = None
+                # Prefer source (original) quality over preview
                 source = item.get('s') or {}
                 url = source.get('u') or source.get('url')
+                
+                # If no source URL, try the highest resolution preview
+                if not url:
+                    previews = item.get('p') or []
+                    if previews:
+                        best = previews[-1]
+                        url = best.get('u') or best.get('url')
+                
                 if url:
+                    # Decode HTML entities in URLs (Reddit sometimes encodes &amp; etc.)
+                    import html as html_module
+                    url = html_module.unescape(url)
+                    media_urls.append(url.split('?')[0])
+        else:
+            # Fallback: process all media_metadata items (no guaranteed order)
+            for item in media_metadata.values():
+                if not isinstance(item, dict):
+                    continue
+                # Prefer source (original) quality over preview
+                url = None
+                source = item.get('s') or {}
+                url = source.get('u') or source.get('url')
+                
+                # If no source URL, try the highest resolution preview
+                if not url:
+                    previews = item.get('p') or []
+                    if previews:
+                        best = previews[-1]
+                        url = best.get('u') or best.get('url')
+                
+                if url:
+                    # Decode HTML entities in URLs
+                    import html as html_module
+                    url = html_module.unescape(url)
                     media_urls.append(url.split('?')[0])
 
     # Reddit-hosted videos
@@ -342,6 +469,7 @@ def scrape_reddit_saved(url, cookies_str, output_dir, log_callback):
         post = child['data']
         post_title = clean_filename(post.get('title') or post.get('name') or f'post_{idx}')
         post_folder = os.path.join(output_dir, post_title)
+        log_callback(f"Processing post: '{post_title}' -> {post_folder}")
 
         media_links = extract_media_urls_from_post_data(post, headers, log_callback)
         if not media_links:
@@ -363,11 +491,22 @@ def scrape_reddit_saved(url, cookies_str, output_dir, log_callback):
 
         log_callback(f"[{post_title}] Found {len(media_links)} media file(s).")
         downloaded_any = False
-        for media_url in media_links:
+        
+        # Check if this is a gallery to add numbering
+        is_gallery = post.get('is_gallery', False)
+        
+        for idx, media_url in enumerate(media_links, 1):
             log_callback(f"→ {media_url}")
-            result = download_file(media_url, post_folder)
+            
+            # Add numbering for gallery images to maintain order
+            filename_prefix = f"{idx:02d}" if is_gallery and len(media_links) > 1 else ""
+            
+            result = download_file(media_url, post_folder, filename_prefix)
             if result:
                 downloaded_any = True
+                log_callback(f"  ✓ Saved to: {result}")
+            else:
+                log_callback(f"  ✗ Failed to download: {media_url}")
         if not downloaded_any:
             try:
                 if os.path.isdir(post_folder):
