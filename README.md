@@ -3,14 +3,14 @@ Bulk Reddit Media Downloader
 
 DESCRIPTION
 -----------
-This program downloads all media (images, videos, etc.) from your a given url.
+This program downloads all media (images, videos, etc.) from a given Reddit.com url.
 Each item is placed in its own folder named after the post title. Works for downloading
-reddit.com saved posts.
+saved posts.
 
 instructions
 -----------
 1. Run the bulk_downloader python file or .exe file.
-2. log into Reddit or the desired website if required.
+2. log into Reddit if downloading saved posts.
 3. Enter the URL of the webpage you want to download from into the Reddit Saved URL field . (example: www.reddit.com/user/USERNAME/saved)
 4. Enter the cookie header string into the login cookie field (Press F12 --> F5 --> select a request from the website --> headers tab --> request headers --> copy full cookie string
    OR download a cookie extention for your browser and export the header string)
