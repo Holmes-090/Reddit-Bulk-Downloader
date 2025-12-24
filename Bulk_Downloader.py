@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urlunparse
 from tkinter import *
 from tkinter import ttk, messagebox, filedialog
-from threading import Thread
+from threading import Thread, Event
 
 
 def clean_filename(name):
@@ -30,7 +30,6 @@ def clean_filename(name):
     if len(sanitized) > 100:
         sanitized = sanitized[:100].rstrip()
     
-    print(f"DEBUG: Cleaned filename: '{name}' -> '{sanitized}'")
     return sanitized
 
 
@@ -62,8 +61,6 @@ def download_file(url, dest_folder, filename_prefix=""):
     urls_to_try = _try_convert_reddit_preview_url(url)
     
     for attempt_url in urls_to_try:
-        print(f"DEBUG: Trying URL: {attempt_url}")
-        
         local_filename = attempt_url.split('/')[-1].split("?")[0]
         
         # Add prefix if provided (useful for gallery ordering)
@@ -80,7 +77,6 @@ def download_file(url, dest_folder, filename_prefix=""):
         
         last_error = f"All URL variants failed for {url}"
     
-    print(f"Error downloading {url}: {last_error}")
     return None
 
 
@@ -105,7 +101,6 @@ def _download_single_url(url, filepath, dest_folder, timeout, attempts):
     for _ in range(attempts):
         try:
             os.makedirs(dest_folder, exist_ok=True)
-            print(f"DEBUG: Downloading {url} to {filepath}")
             with requests.get(url, stream=True, headers=headers, timeout=timeout) as r:
                 r.raise_for_status()
                 with open(filepath, 'wb') as f:
@@ -115,16 +110,10 @@ def _download_single_url(url, filepath, dest_folder, timeout, attempts):
                         f.write(chunk)
             # Verify file was created and has content
             if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
-                print(f"DEBUG: Successfully created file {filepath} ({os.path.getsize(filepath)} bytes)")
                 return filepath
             else:
-                print(f"DEBUG: File creation failed or file is empty: {filepath}")
                 return None
         except Exception as e:
-            print(f"DEBUG: Exception during download: {e}")
-            print(f"DEBUG: Request headers used: {headers}")
-            if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
-                print(f"DEBUG: Response status code: {e.response.status_code}")
             try:
                 if os.path.exists(filepath):
                     os.remove(filepath)
@@ -444,7 +433,7 @@ def fetch_all_saved_items_json(saved_url: str, headers: dict, cookies: dict, log
     return items
 
 
-def scrape_reddit_saved(url, cookies_str, output_dir, log_callback):
+def scrape_reddit_saved(url, cookies_str, output_dir, log_callback, pause_event=None, stop_event=None):
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) RedditSavedDownloader/1.0'}
     cookies = parse_cookie_string_to_dict(cookies_str)
     cookies.setdefault('over18', '1')
@@ -464,12 +453,30 @@ def scrape_reddit_saved(url, cookies_str, output_dir, log_callback):
     log_callback(f"Found {len(items)} saved items. Extracting media and downloading...")
 
     for idx, child in enumerate(items, start=1):
+        # Check for stop
+        if stop_event and stop_event.is_set():
+            log_callback("⏹ Stopped downloading.")
+            return
+        
+        # Wait if paused
+        if pause_event and pause_event.is_set():
+            while pause_event.is_set() and not (stop_event and stop_event.is_set()):
+                time.sleep(0.1)
+            if stop_event and stop_event.is_set():
+                log_callback("⏹ Stopped downloading.")
+                return
+        
         if not isinstance(child, dict) or 'data' not in child:
             continue
         post = child['data']
         post_title = clean_filename(post.get('title') or post.get('name') or f'post_{idx}')
         post_folder = os.path.join(output_dir, post_title)
         log_callback(f"Processing post: '{post_title}' -> {post_folder}")
+
+        # Check for stop before processing
+        if stop_event and stop_event.is_set():
+            log_callback("⏹ Stopped downloading.")
+            return
 
         media_links = extract_media_urls_from_post_data(post, headers, log_callback)
         if not media_links:
@@ -495,11 +502,24 @@ def scrape_reddit_saved(url, cookies_str, output_dir, log_callback):
         # Check if this is a gallery to add numbering
         is_gallery = post.get('is_gallery', False)
         
-        for idx, media_url in enumerate(media_links, 1):
+        for media_idx, media_url in enumerate(media_links, 1):
+            # Check for stop before each download
+            if stop_event and stop_event.is_set():
+                log_callback("⏹ Stopped downloading.")
+                return
+            
+            # Wait if paused
+            if pause_event and pause_event.is_set():
+                while pause_event.is_set() and not (stop_event and stop_event.is_set()):
+                    time.sleep(0.1)
+                if stop_event and stop_event.is_set():
+                    log_callback("⏹ Stopped downloading.")
+                    return
+            
             log_callback(f"→ {media_url}")
             
             # Add numbering for gallery images to maintain order
-            filename_prefix = f"{idx:02d}" if is_gallery and len(media_links) > 1 else ""
+            filename_prefix = f"{media_idx:02d}" if is_gallery and len(media_links) > 1 else ""
             
             result = download_file(media_url, post_folder, filename_prefix)
             if result:
@@ -519,11 +539,26 @@ def scrape_reddit_saved(url, cookies_str, output_dir, log_callback):
             except Exception:
                 pass
 
-    log_callback("✅ Done downloading saved posts!")
+    if not (stop_event and stop_event.is_set()):
+        log_callback("✅ Done downloading saved posts!")
 
 
 # GUI Setup
+# Progress tracking variables
+progress_state = {"total": 0, "current": 0, "active": False}
+# Download control variables
+pause_event = Event()
+stop_event = Event()
+download_thread = None
+
+def restore_start_button():
+    pause_btn.pack_forget()
+    stop_btn.pack_forget()
+    download_btn.pack(ipadx=25, ipady=8)
+
 def start_download():
+    global download_thread
+    
     url = url_entry.get().strip()
     cookie = cookie_entry.get().strip()
     folder = folder_entry.get().strip() or os.getcwd()
@@ -532,11 +567,73 @@ def start_download():
         messagebox.showwarning("Input Needed", "Please provide both URL and Cookie.")
         return
 
-    def log(msg):
-        output_box.insert(END, msg + "\n")
-        output_box.see(END)
+    # Reset progress and control events
+    progress_state["total"] = 0
+    progress_state["current"] = 0
+    progress_state["active"] = True
+    pause_event.clear()
+    stop_event.clear()
+    progress_label.config(text="")
+    progress_label.pack_forget()  # Hide initially
+    output_box.delete(1.0, END)  # Clear previous log
+    
+    # Update UI to show pause/stop buttons
+    download_btn.pack_forget()
+    pause_btn.pack(side='left', padx=(0, 8), ipadx=20, ipady=8)
+    stop_btn.pack(side='left', ipadx=20, ipady=8)
 
-    Thread(target=scrape_reddit_saved, args=(url, cookie, folder, log), daemon=True).start()
+    def log(msg):
+        # Update GUI on main thread
+        root.after(0, lambda: output_box.insert(END, msg + "\n"))
+        root.after(0, lambda: output_box.see(END))
+        
+        # Parse "Found X saved items" message to extract total
+        if "Found" in msg and "saved items" in msg:
+            match = re.search(r'Found (\d+) saved items', msg)
+            if match:
+                progress_state["total"] = int(match.group(1))
+                progress_state["current"] = 0
+                root.after(0, update_progress_label)
+        
+        # Track when processing posts
+        if "Processing post:" in msg:
+            progress_state["current"] += 1
+            root.after(0, update_progress_label)
+        
+        # Hide progress when done
+        if "Done downloading" in msg or "✅" in msg or "Stopped" in msg:
+            progress_state["active"] = False
+            root.after(100, lambda: progress_label.pack_forget())
+            root.after(100, restore_start_button)
+
+    def update_progress_label():
+        if progress_state["active"] and progress_state["total"] > 0:
+            current = progress_state["current"]
+            total = progress_state["total"]
+            percentage = int((current / total) * 100) if total > 0 else 0
+            progress_text = f"{current}/{total} ({percentage}%)"
+            progress_label.config(text=progress_text)
+            if not progress_label.winfo_viewable():
+                progress_label.pack(side='right')
+
+    download_thread = Thread(target=scrape_reddit_saved, args=(url, cookie, folder, log, pause_event, stop_event), daemon=True)
+    download_thread.start()
+
+def pause_download():
+    if pause_event.is_set():
+        # Resume
+        pause_event.clear()
+        pause_btn.config(text="⏸ Pause Download")
+    else:
+        # Pause
+        pause_event.set()
+        pause_btn.config(text="▶ Resume Download")
+
+def stop_download():
+    stop_event.set()
+    pause_event.clear()  # Clear pause so we can exit
+    progress_state["active"] = False
+    root.after(100, restore_start_button)
 
 
 def browse_folder():
@@ -592,6 +689,16 @@ style.configure("Accent.TButton",
                padding=(20, 8))
 style.map("Accent.TButton",
          background=[('active', '#ff5500')],
+         relief=[('pressed', 'sunken')])
+
+# Configure Stop button style (red/danger)
+style.configure("Stop.TButton",
+               background="#d32f2f",
+               foreground="#ffffff",
+               font=("Segoe UI", 10, "bold"),
+               padding=(20, 8))
+style.map("Stop.TButton",
+         background=[('active', '#b71c1c')],
          relief=[('pressed', 'sunken')])
 
 # Configure Scrollbar style
@@ -731,14 +838,32 @@ download_btn = ttk.Button(button_frame, text="▶ Start Download",
                          style="Accent.TButton")
 download_btn.pack(ipadx=25, ipady=8)
 
+# Pause and Stop buttons (initially hidden)
+pause_btn = ttk.Button(button_frame, text="⏸ Pause Download", 
+                      command=pause_download,
+                      style="Accent.TButton")
+
+stop_btn = ttk.Button(button_frame, text="⏹ Stop Download", 
+                     command=stop_download,
+                     style="Stop.TButton")
+
 # Output log section - takes remaining space
 log_section = Frame(main_frame, bg=section_bg, relief='flat', bd=1)
 log_section.pack(fill='both', expand=True)
 
-log_title = Label(log_section, text="Download Progress", 
+# Title bar with progress indicator on the right
+title_frame = Frame(log_section, bg=section_bg)
+title_frame.pack(fill='x', padx=15, pady=(12, 8))
+
+log_title = Label(title_frame, text="Download Progress", 
                  font=("Segoe UI", 10, "bold"), 
                  bg=section_bg, fg=text_color, anchor='w')
-log_title.pack(fill='x', padx=15, pady=(12, 8))
+log_title.pack(side='left')
+
+# Progress indicator (initially hidden, appears on the right)
+progress_label = Label(title_frame, text="", 
+                      font=("Segoe UI", 10, "bold"), 
+                      bg=section_bg, fg=accent_color, anchor='e')
 
 # Output box with scrollbar
 log_container = Frame(log_section, bg=section_bg)
