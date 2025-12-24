@@ -1,21 +1,35 @@
-Bulk Reddit Media Downloader
+Bulk Reddit Saved Posts Media Downloader
 ==================================
 
 DESCRIPTION
 -----------
-A Python tool that downloads media (images, GiFs, videos, etc.) from your Reddit saved posts for offline viewing.
+A Python tool for downloading media (images, GIFs, and videos) from your Reddit saved posts for offline viewing and organization.
 
-Each post is placed in its own folder named after the post title.
+This tool downloads media directly from Reddit and organizes each post into its own folder, making it easy to archive or manage saved content
 
-instructions
------------
-1. Run the bulk_downloader python file or .exe file or download the full release executable.
-2. log into Reddit, view your profile, and select saved posts.
-3. Enter the URL of the webpage into the Reddit Saved URL field . (example: www.reddit.com/user/USERNAME/saved)
-4. Enter the cookie header string into the login cookie field (Press F12 --> F5 --> select a request from the website --> headers tab --> request headers --> copy full cookie string
-   OR download a cookie extention for your browser and export the header string)
-5. Enter a folder to export downloaded files to from the saved folder field.
+Features
+--------
+Download images, GIFs, and videos from Reddit saved posts
+
+Automatically organize files into folders by post
+
+Works with media hosted on Reddit and common external hosts
+
+Simple local setup — no account or API keys required
+
+Usage
+------
+1. Run the Python script or   executable.
+Log into Reddit and navigate to your saved posts.
+
+2. Copy the page URL and paste it into the application.
+
+3. Copy your browser cookie header and paste it into the app.
+
+4. Choose an output folder and start the download.
 
 DISCLAIMER
 ----------
-This program is for personal use only. Do not use it to download copyrighted content without permission.
+This tool is intended for personal use only.
+
+Do not use it to download copyrighted content you do not own or have permission to download.
