@@ -548,32 +548,216 @@ def browse_folder():
 
 root = Tk()
 root.title("Reddit Saved Media Downloader")
-root.geometry("700x500")
+root.geometry("750x600")
 
-# URL
-ttk.Label(root, text="Reddit Saved URL:").pack(anchor='w', padx=10, pady=(10, 0))
-url_entry = ttk.Entry(root, width=100)
-url_entry.insert(0, "https://old.reddit.com/user/YOUR_USERNAME/saved/")
-url_entry.pack(padx=10)
+# Configure dark mode color scheme
+bg_color = "#1e1e1e"  # Dark background
+section_bg = "#2d2d2d"  # Darker section background
+accent_color = "#ff4500"  # Reddit orange
+text_color = "#e0e0e0"  # Light text
+text_color_secondary = "#b0b0b0"  # Secondary text
+border_color = "#404040"  # Dark border
+entry_bg = "#1a1a1a"  # Even darker for entries
+entry_fg = "#ffffff"  # White text in entries
 
-# Cookie
-ttk.Label(root, text="Login Cookie:").pack(anchor='w', padx=10, pady=(10, 0))
-cookie_entry = ttk.Entry(root, width=100)
-cookie_entry.pack(padx=10)
+root.configure(bg=bg_color)
 
-# Folder
-ttk.Label(root, text="Save Folder:").pack(anchor='w', padx=10, pady=(10, 0))
-folder_frame = Frame(root)
-folder_frame.pack(padx=10, pady=(0, 10), fill='x')
-folder_entry = ttk.Entry(folder_frame, width=85)
-folder_entry.pack(side='left', fill='x', expand=True)
-ttk.Button(folder_frame, text="Browse", command=browse_folder).pack(side='left', padx=(5, 0))
+# Configure ttk style for dark mode
+style = ttk.Style()
+style.theme_use('clam')
 
-# Download button
-ttk.Button(root, text="Start Download", command=start_download).pack(pady=(0, 10))
+# Configure Entry style for dark mode
+style.configure("TEntry",
+               fieldbackground=entry_bg,
+               foreground="#888888",  # Greyed out text for placeholder
+               borderwidth=1,
+               relief='flat')
 
-# Output log
-output_box = Text(root, height=15, wrap=WORD)
-output_box.pack(fill='both', padx=10, pady=(0, 10), expand=True)
+# Configure Button style for dark mode
+style.configure("TButton",
+               background=section_bg,
+               foreground=text_color,
+               borderwidth=1,
+               relief='flat',
+               padding=5)
+style.map("TButton",
+         background=[('active', '#3d3d3d')],
+         relief=[('pressed', 'sunken')])
+
+# Configure Accent button style
+style.configure("Accent.TButton",
+               background=accent_color,
+               foreground="#ffffff",
+               font=("Segoe UI", 10, "bold"),
+               padding=(20, 8))
+style.map("Accent.TButton",
+         background=[('active', '#ff5500')],
+         relief=[('pressed', 'sunken')])
+
+# Configure Scrollbar style
+style.configure("TScrollbar",
+               background=section_bg,
+               troughcolor=bg_color,
+               borderwidth=0,
+               arrowcolor=text_color,
+               darkcolor=section_bg,
+               lightcolor=section_bg)
+
+# Compact header section
+header_frame = Frame(root, bg=section_bg, relief='flat', bd=0)
+header_frame.pack(fill='x', padx=12, pady=(10, 8))
+
+title_label = Label(header_frame, text="Reddit Bulk Downloader", 
+                    font=("Segoe UI", 16, "bold"), 
+                    bg=section_bg, fg=text_color)
+title_label.pack(pady=(10, 3))
+
+subtitle_label = Label(header_frame, text="Download your saved Reddit posts and media", 
+                      font=("Segoe UI", 8), 
+                      bg=section_bg, fg=text_color_secondary)
+subtitle_label.pack(pady=(0, 10))
+
+# Main content frame
+main_frame = Frame(root, bg=bg_color)
+main_frame.pack(fill='both', expand=True, padx=12, pady=(0, 12))
+
+# Compact input section
+input_section = Frame(main_frame, bg=section_bg, relief='flat', bd=1)
+input_section.pack(fill='x', pady=(0, 10))
+
+# Section title
+section_title = Label(input_section, text="Configuration", 
+                     font=("Segoe UI", 10, "bold"), 
+                     bg=section_bg, fg=text_color, anchor='w')
+section_title.pack(fill='x', padx=15, pady=(12, 10))
+
+# URL field
+url_container = Frame(input_section, bg=section_bg)
+url_container.pack(fill='x', padx=15, pady=(0, 10))
+
+url_label = Label(url_container, text="Reddit Saved URL", 
+                 font=("Segoe UI", 8), 
+                 bg=section_bg, fg=text_color_secondary, anchor='w')
+url_label.pack(fill='x', pady=(0, 4))
+
+# Use regular Entry for URL field to allow individual color control
+url_entry = Entry(url_container, width=100, font=("Segoe UI", 9),
+                 bg=entry_bg, fg="#666666",  # Greyed out placeholder color
+                 insertbackground=text_color,
+                 selectbackground="#404040",
+                 selectforeground=text_color,
+                 relief='flat', bd=1,
+                 highlightthickness=1,
+                 highlightcolor=accent_color,
+                 highlightbackground=border_color)
+placeholder_text = " https://reddit.com/user/YOUR_USERNAME/saved/ "
+url_entry.insert(0, placeholder_text)
+url_entry.pack(fill='x', ipady=5)
+
+# Make placeholder text greyed out, turn white when user types
+def on_url_focus_in(event):
+    if url_entry.get() == placeholder_text:
+        url_entry.delete(0, END)
+        url_entry.config(fg=entry_fg)
+    else:
+        url_entry.config(fg=entry_fg)
+
+def on_url_focus_out(event):
+    if url_entry.get().strip() == "":
+        url_entry.insert(0, placeholder_text)
+        url_entry.config(fg="#666666")
+
+def on_url_key(event):
+    if url_entry.get() != placeholder_text:
+        url_entry.config(fg=entry_fg)
+
+url_entry.bind('<FocusIn>', on_url_focus_in)
+url_entry.bind('<FocusOut>', on_url_focus_out)
+url_entry.bind('<Key>', on_url_key)
+
+# Cookie field
+cookie_container = Frame(input_section, bg=section_bg)
+cookie_container.pack(fill='x', padx=15, pady=(0, 10))
+
+cookie_label = Label(cookie_container, text="Login Cookie", 
+                    font=("Segoe UI", 8), 
+                    bg=section_bg, fg=text_color_secondary, anchor='w')
+cookie_label.pack(fill='x', pady=(0, 4))
+
+cookie_entry = Entry(cookie_container, width=100, font=("Segoe UI", 9),
+                    bg=entry_bg, fg=entry_fg,
+                    insertbackground=text_color,
+                    selectbackground="#404040",
+                    selectforeground=text_color,
+                    relief='flat', bd=1,
+                    highlightthickness=0)  # No border
+cookie_entry.pack(fill='x', ipady=5)
+
+# Folder field
+folder_container = Frame(input_section, bg=section_bg)
+folder_container.pack(fill='x', padx=15, pady=(0, 12))
+
+folder_label = Label(folder_container, text="Output Folder", 
+                    font=("Segoe UI", 8), 
+                    bg=section_bg, fg=text_color_secondary, anchor='w')
+folder_label.pack(fill='x', pady=(0, 4))
+
+folder_frame = Frame(folder_container, bg=section_bg)
+folder_frame.pack(fill='x')
+folder_entry = Entry(folder_frame, width=85, font=("Segoe UI", 9),
+                     bg=entry_bg, fg=entry_fg,
+                     insertbackground=text_color,
+                     selectbackground="#404040",
+                     selectforeground=text_color,
+                     relief='flat', bd=1,
+                     highlightthickness=0)  # No border
+folder_entry.pack(side='left', fill='x', expand=True, ipady=5)
+browse_btn = Button(folder_frame, text="Browse", command=browse_folder,
+                   bg=section_bg, fg=text_color,
+                   activebackground="#3d3d3d",
+                   activeforeground=text_color,
+                   font=("Segoe UI", 9),
+                   relief='solid', bd=1,
+                   highlightthickness=0,
+                   padx=12, pady=5)
+browse_btn.pack(side='left', padx=(6, 0))
+
+# Download button section
+button_frame = Frame(main_frame, bg=bg_color)
+button_frame.pack(fill='x', pady=(0, 10))
+
+download_btn = ttk.Button(button_frame, text="▶ Start Download", 
+                         command=start_download, 
+                         style="Accent.TButton")
+download_btn.pack(ipadx=25, ipady=8)
+
+# Output log section - takes remaining space
+log_section = Frame(main_frame, bg=section_bg, relief='flat', bd=1)
+log_section.pack(fill='both', expand=True)
+
+log_title = Label(log_section, text="Download Progress", 
+                 font=("Segoe UI", 10, "bold"), 
+                 bg=section_bg, fg=text_color, anchor='w')
+log_title.pack(fill='x', padx=15, pady=(12, 8))
+
+# Output box with scrollbar
+log_container = Frame(log_section, bg=section_bg)
+log_container.pack(fill='both', expand=True, padx=15, pady=(0, 12))
+
+scrollbar = ttk.Scrollbar(log_container)
+scrollbar.pack(side='right', fill='y')
+
+output_box = Text(log_container, wrap=WORD, 
+                 font=("Consolas", 8), 
+                 bg=entry_bg, fg="#d0d0d0",
+                 relief='flat', bd=0,
+                 yscrollcommand=scrollbar.set,
+                 padx=8, pady=8,
+                 insertbackground=text_color,
+                 selectbackground="#404040",
+                 selectforeground=text_color)
+output_box.pack(side='left', fill='both', expand=True)
+
+scrollbar.config(command=output_box.yview)
 
 root.mainloop()
