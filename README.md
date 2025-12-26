@@ -3,7 +3,7 @@ Bulk Reddit Saved Posts Media Downloader
 
 DESCRIPTION
 -----------
-A Python tool for downloading media (images, GIFs, and videos) from your Reddit saved posts for offline viewing and organization.
+A Python tool for downloading media (images, GIFs, and videos) from your Reddit saved posts for offline viewing.
 
 This tool downloads media directly from Reddit and organizes each post into its own folder, making it easy to archive or manage saved content
 
