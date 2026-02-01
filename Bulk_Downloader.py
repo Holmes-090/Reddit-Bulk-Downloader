@@ -9,6 +9,12 @@ from tkinter import *
 from tkinter import ttk, messagebox, filedialog
 from threading import Thread, Event
 
+try:
+    from PIL import Image, ImageDraw, ImageFont, ImageTk
+    _PIL_AVAILABLE = True
+except ImportError:
+    _PIL_AVAILABLE = False
+
 
 def clean_filename(name):
     # Sanitize filename for Windows
@@ -643,6 +649,90 @@ def browse_folder():
         folder_entry.insert(0, folder)
 
 
+def create_tooltip(widget, text, delay_ms=500):
+    """Show a tooltip on hover, hide on leave. Does not take layout space."""
+    tooltip_window = None
+    after_id = None
+
+    def show_tooltip(event):
+        nonlocal tooltip_window, after_id
+        if after_id:
+            root.after_cancel(after_id)
+            after_id = None
+        if tooltip_window:
+            return
+        def do_show():
+            nonlocal tooltip_window
+            if tooltip_window:
+                return
+            tooltip_window = Toplevel(root)
+            tooltip_window.overrideredirect(True)
+            tooltip_window.withdraw()
+            lbl = Label(tooltip_window, text=text, font=("Segoe UI", 9),
+                        bg="#2d2d2d", fg="#e0e0e0", relief='solid', bd=1,
+                        padx=10, pady=8, wraplength=320, justify='left')
+            lbl.pack()
+            tooltip_window.update_idletasks()
+            x = widget.winfo_rootx() + 16
+            y = widget.winfo_rooty() + widget.winfo_height() + 4
+            tooltip_window.geometry(f"+{x}+{y}")
+            tooltip_window.deiconify()
+        after_id = root.after(delay_ms, do_show)
+
+    def hide_tooltip(event):
+        nonlocal tooltip_window, after_id
+        if after_id:
+            root.after_cancel(after_id)
+            after_id = None
+        if tooltip_window:
+            tooltip_window.destroy()
+            tooltip_window = None
+
+    widget.bind('<Enter>', show_tooltip)
+    widget.bind('<Leave>', hide_tooltip)
+
+
+def create_smooth_help_icon(parent, bg_color, size=22):
+    """Create a smooth, anti-aliased '?' in circle icon using PIL (high-res render + downscale). Returns (photo_image, label_widget) or (None, canvas_widget) if PIL unavailable."""
+    if not _PIL_AVAILABLE:
+        return None, None
+    try:
+        scale = 3
+        w, h = size * scale, size * scale
+        bg = bg_color.lstrip("#")
+        bg_rgb = tuple(int(bg[i:i+2], 16) for i in (0, 2, 4))
+        img = Image.new("RGB", (w, h), bg_rgb)
+        draw = ImageDraw.Draw(img)
+        # White circle ring: outer white, inner bg by drawing filled white circle then smaller filled bg circle
+        margin = scale * 2
+        draw.ellipse([margin, margin, w - margin, h - margin], fill=(255, 255, 255), outline=None)
+        inner = scale * 3
+        draw.ellipse([inner, inner, w - inner, h - inner], fill=bg_rgb, outline=None)
+        # White "?" in center
+        try:
+            font = ImageFont.truetype("segoeui.ttf", 14 * scale)
+        except OSError:
+            try:
+                font = ImageFont.truetype("arial.ttf", 14 * scale)
+            except OSError:
+                font = ImageFont.load_default()
+        text = "?"
+        bbox = draw.textbbox((0, 0), text, font=font)
+        tw = bbox[2] - bbox[0]
+        th = bbox[3] - bbox[1]
+        x = (w - tw) // 2 - bbox[0]
+        y = (h - th) // 2 - bbox[1]
+        draw.text((x, y), text, fill=(255, 255, 255), font=font)
+        resample = getattr(Image, "Resampling", None) and Image.Resampling.LANCZOS or getattr(Image, "LANCZOS", Image.BICUBIC)
+        img_small = img.resize((size, size), resample)
+        photo = ImageTk.PhotoImage(img_small)
+        label = Label(parent, image=photo, bg=bg_color, cursor="question_arrow")
+        label._photo = photo
+        return photo, label
+    except Exception:
+        return None, None
+
+
 root = Tk()
 root.title("Reddit Saved Media Downloader")
 root.geometry("750x600")
@@ -786,10 +876,28 @@ url_entry.bind('<Key>', on_url_key)
 cookie_container = Frame(input_section, bg=section_bg)
 cookie_container.pack(fill='x', padx=15, pady=(0, 10))
 
-cookie_label = Label(cookie_container, text="Login Cookie", 
+cookie_label_row = Frame(cookie_container, bg=section_bg)
+cookie_label_row.pack(fill='x', pady=(0, 4))
+cookie_label = Label(cookie_label_row, text="Login Cookie", 
                     font=("Segoe UI", 8), 
                     bg=section_bg, fg=text_color_secondary, anchor='w')
-cookie_label.pack(fill='x', pady=(0, 4))
+cookie_label.pack(side='left')
+# Help icon: smooth white circle + "?" (PIL high-res + downscale for anti-aliasing; fallback Canvas if no PIL)
+_help_icon_size = 22
+cookie_help_icon_photo, cookie_help_icon_label = create_smooth_help_icon(cookie_label_row, section_bg, _help_icon_size)
+if cookie_help_icon_label is not None:
+    cookie_help_icon = cookie_help_icon_label
+    cookie_help_icon.pack(side='left', padx=(4, 0))
+else:
+    cookie_help_icon = Canvas(cookie_label_row, width=_help_icon_size, height=_help_icon_size,
+                              bg=section_bg, highlightthickness=0, cursor="question_arrow")
+    cookie_help_icon.pack(side='left', padx=(4, 0))
+    cookie_help_icon.create_oval(2, 2, _help_icon_size - 2, _help_icon_size - 2,
+                                 outline="#ffffff", width=1.5, fill=section_bg)
+    cookie_help_icon.create_text(_help_icon_size // 2, _help_icon_size // 2, text="?",
+                                 fill="#ffffff", font=("Segoe UI", 11, "bold"))
+create_tooltip(cookie_help_icon,
+    "This is your Reddit session cookie. You can get it from your browser's developer tools (Network or Application tab) or by exporting request headers with a browser extension. Paste the full Cookie header string here.")
 
 cookie_entry = Entry(cookie_container, width=100, font=("Segoe UI", 9),
                     bg=entry_bg, fg=entry_fg,
