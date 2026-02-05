@@ -26,7 +26,7 @@ A desktop tool for downloading and archiving media (images, GIFs, and videos) fr
 
 1. **Clone or download this repository**
    ```bash
-   git clone https://github.com/yourusername/reddit-saved-downloader.git
+   git clone https://github.com/Holmes-090/reddit-saved-downloader.git
    cd reddit-saved-downloader
    ```
 
@@ -53,7 +53,7 @@ Your Reddit session cookie header is required to access your saved posts (just l
 **IMPORTANT:** You need the complete **Cookie header string** from your browser, not individual cookie values.
 
 **Method 1: Using Browser Extension (Easiest)**
-1. Install the "Cookie-Editor" browser extension (available for Chrome, Firefox, Edge)
+1. Install a cookie browser extension (ex. "Cookie-Editor") for your browser
 2. While logged into Reddit, click the Cookie-Editor icon
 3. Click "Export" and choose "Header String" format
 4. Copy the exported string
@@ -77,7 +77,7 @@ The cookie string should contain multiple cookies separated by semicolons.
 ### Step 3: Download Your Media
 1. Paste your Reddit saved posts URL into the first field
 2. Paste your cookie header string into the second field
-3. Choose where to save your downloads (or leave default)
+3. Choose where to save your downloads 
 4. Click "Start Download"
 5. Use "Pause" or "Stop" if needed
 
@@ -165,10 +165,6 @@ This tool is intended for **personal archival use only**.
 - **Terms of Service:** Use of this tool should comply with Reddit's Terms of Service.
 - **Liability:** The developer is not responsible for how this tool is used.
 
-## Contributing
-
-Contributions are welcome! Please feel free to submit issues or pull requests.
-
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
@@ -177,7 +173,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - Built for the Reddit community
 - Uses BeautifulSoup for HTML parsing
-- Thanks to all contributors and users
 
 ---
 
