@@ -17,6 +17,11 @@ Works with media hosted on Reddit and common external hosts
 
 Simple local setup — no account or API keys required
 
+Security
+--------
+This tool requires your Reddit login cookies. NEVER share your cookies with others.
+Only use this tool with your own Reddit account.
+
 Usage
 ------
 1. Run the Python script or   executable.
@@ -25,8 +30,9 @@ Log into Reddit and navigate to your saved posts.
 2. Copy the page URL and paste it into the application.
 
 3. Copy your browser cookie header and paste it into the app.
+*IMPORTANT: cookies should be kept private and never share cookies publicly.
 
-4. Choose an output folder and start the download.
+5. Choose an output folder and start the download.
 
 DISCLAIMER
 ----------
