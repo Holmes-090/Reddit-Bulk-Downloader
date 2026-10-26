@@ -18,6 +18,12 @@ A desktop tool for downloading and archiving media (images, GIFs, and videos) fr
 
 ## Installation
 
+download and run the latest release
+
+or
+
+clone and run the build as described below:
+
 ### Requirements
 - Python 3.7 or higher
 - pip (Python package manager)
