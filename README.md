@@ -1,3 +1,7 @@
+
+⚠️ Note: This project is currently broken due to changes on Reddit’s side. Feel free to fork the repository and submit a fix if you’d like to help restore functionality.
+
+
 # Reddit Saved Posts Media Downloader
 
 A desktop tool for downloading and archiving media (images, GIFs, and videos) from your Reddit saved posts.
